@@ -83,3 +83,35 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# firebase
+google-services.json
+*/google-services.json
+_artifacts
+
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/build
+/captures
+.cxx
+
+# Windows thumbnail db
+Thumbs.db
+
+# OSX files
+.DS_Store
+
+# Android Studio
+.idea
+/.idea/*
+.navigation
+output.json
+
+#NDK
+obj/
