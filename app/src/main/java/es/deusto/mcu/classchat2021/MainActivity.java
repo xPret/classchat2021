@@ -34,6 +34,8 @@ public class MainActivity extends AppCompatActivity {
         Bundle bundle = new Bundle();
         bundle.putString("source", source);
         mFirebaseAnalytics.logEvent("click_start", bundle);
+        ChatActivity.startActivity(this);
+        finish();
     }
 
     private void about() {
