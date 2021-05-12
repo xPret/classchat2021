@@ -194,6 +194,7 @@ public class ChatActivity extends AppCompatActivity {
                         @Override
                         public void onComplete(@Nullable DatabaseError databaseError,
                                                @NonNull DatabaseReference databaseReference) {
+                            fab.show();
                             mEditTextMessage.setVisibility(View.VISIBLE);
                             if (databaseError == null) {
                                 Toast.makeText(getApplicationContext(),
@@ -206,6 +207,7 @@ public class ChatActivity extends AppCompatActivity {
                                                     .child(mFirebaseUser.getUid())
                                                     .child(key);
                                     putImageInStorage(newImageRef, mImageMessageUri, key);
+                                    mButtonAddImage.setImageResource(R.drawable.ic_action_add_img);
                                     mImageMessageUri = null;
                                 }
                             } else {
