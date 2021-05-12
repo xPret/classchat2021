@@ -1,13 +1,12 @@
 package es.deusto.mcu.classchat2021;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 
 import com.bumptech.glide.Glide;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
@@ -18,6 +17,8 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -30,8 +31,10 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,11 +50,15 @@ public class ChatActivity extends AppCompatActivity {
     private static final String ROOM_NAME_CHILD = "roomName";
     private static final String MESSAGES_CHILD = "messages";
     private static final String TAG = ChatActivity.class.getName();
+    private static final int REQUEST_IMAGE = 0;
+    private static final String FOLDER_CHAT_IMAGES = "/chat_images";
+    private static final String MESSAGE_IMAGE_FIELD = "messageImageURL";
     private FirebaseAuth mFirebaseAuth;
     private FirebaseUser mFirebaseUser;
     private GoogleApiClient mGoogleApiClient;
 
     private DatabaseReference mFirebaseDatabaseRef;
+    private StorageReference mFirebaseStorageRef;
 
     private TextView mTextViewUsername;
     private TextView mTextViewUserEmail;
@@ -61,7 +68,6 @@ public class ChatActivity extends AppCompatActivity {
     private EditText mEditTextMessage;
     private TextView mTextViewRoomTitle;
 
-
     private DatabaseReference mMessagesRef;
     private ChildEventListener mMessagesChildEventListener;
 
@@ -69,6 +75,9 @@ public class ChatActivity extends AppCompatActivity {
     private List<ChatMessage> mChatMessagesList;
     private MessageAdapter messageAdapter;
     private RecyclerView mMessagesRecycler;
+
+    private ImageButton mButtonAddImage;
+    private Uri mImageMessageUri = null;
 
 
     @Override
@@ -95,19 +104,6 @@ public class ChatActivity extends AppCompatActivity {
 
         mChatMessagesMap = new HashMap<>();
         mChatMessagesList = new ArrayList<>();
-
-        /** HARDCODED MESSAGES
-        mChatMessagesList.add(new ChatMessage(
-                "Winter is coming...",
-                "Arya",
-                "https://media.metrolatam.com/2019/04/29/capturadepantall-f748024b39daf7b0ca2e96a5a8922548-1200x600.jpg"));
-
-        mChatMessagesList.add(new ChatMessage(
-                "Siempre pago mis deudas!",
-                "Tyrion",
-                "https://upload.wikimedia.org/wikipedia/en/thumb/5/50/Tyrion_Lannister-Peter_Dinklage.jpg/220px-Tyrion_Lannister-Peter_Dinklage.jpg"));
-        //*/
-
         messageAdapter = new MessageAdapter(mChatMessagesList);
 
         LinearLayoutManager mLinearLayoutManager = new LinearLayoutManager(this);
@@ -115,6 +111,17 @@ public class ChatActivity extends AppCompatActivity {
         mMessagesRecycler.setLayoutManager(mLinearLayoutManager);
         mMessagesRecycler.setAdapter(messageAdapter);
 
+        mButtonAddImage = findViewById(R.id.ib_add_image);
+        mButtonAddImage.setOnClickListener(view -> {
+            if (mImageMessageUri == null) {
+                addImageToMessage();
+            } else {
+                mImageMessageUri = null;
+                Snackbar.make(fab, "Image removed from message",
+                        Snackbar.LENGTH_SHORT).setAction("ImgRem", null).show();
+                mButtonAddImage.setImageResource(R.drawable.ic_action_add_img);
+            }
+        });
 
         initFirebaseAuth();
         initGoogleApiClient();
@@ -130,6 +137,11 @@ public class ChatActivity extends AppCompatActivity {
         initFirebaseDatabaseReference();
         initFirebaseDatabaseRoomNameRefListener();
         initFirebaseDatabaseMessageRefListener();
+        initFirebaseCloudStorage();
+    }
+
+    private void initFirebaseCloudStorage() {
+        mFirebaseStorageRef = FirebaseStorage.getInstance().getReference();
     }
 
     private void initFirebaseAuth() {
@@ -178,36 +190,68 @@ public class ChatActivity extends AppCompatActivity {
 
             mFirebaseDatabaseRef.child(ROOMS_CHILD).child(ROOM_ID)
                     .child(MESSAGES_CHILD)
-                    .push().setValue(newMessage)
-                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    .push().setValue(newMessage, new DatabaseReference.CompletionListener() {
                         @Override
-                        public void onSuccess(Void aVoid) {
-                            mEditTextMessage.setText("");
-                            Snackbar.make(fab, R.string.message_sent_ok,
-                                    Snackbar.LENGTH_LONG).show();
-                            fab.show();
+                        public void onComplete(@Nullable DatabaseError databaseError,
+                                               @NonNull DatabaseReference databaseReference) {
                             mEditTextMessage.setVisibility(View.VISIBLE);
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            Snackbar.make(fab, R.string.message_sent_error,
-                                    Snackbar.LENGTH_LONG).show();
-                            fab.show();
-                            mEditTextMessage.setVisibility(View.VISIBLE);
+                            if (databaseError == null) {
+                                Toast.makeText(getApplicationContext(),
+                                        "Message sent",Toast.LENGTH_LONG).show();
+                                mEditTextMessage.setText("");
+                                if (mImageMessageUri != null) {
+                                    String key = databaseReference.getKey();
+                                    StorageReference newImageRef =
+                                            mFirebaseStorageRef.child(FOLDER_CHAT_IMAGES)
+                                                    .child(mFirebaseUser.getUid())
+                                                    .child(key);
+                                    putImageInStorage(newImageRef, mImageMessageUri, key);
+                                    mImageMessageUri = null;
+                                }
+                            } else {
+                                Toast.makeText(getApplicationContext(),
+                                        "Error sending message",
+                                        Toast.LENGTH_LONG).show();
+                            }
                         }
                     });
-            ;
         }
     }
+
+    private void putImageInStorage(final StorageReference newImageRef,
+                                  final Uri imageUri,
+                                  final String messageKey) {
+        Log.d(TAG, "Image uploading to " + newImageRef.toString());
+        newImageRef.putFile(imageUri)
+                .addOnProgressListener(snapshot -> {
+                    double prog = (100.0 * snapshot.getBytesTransferred())
+                            / snapshot.getTotalByteCount();
+                    Log.i(TAG, "Upload is " + prog + "% done");
+                })
+                .addOnCompleteListener(ChatActivity.this,
+                        task -> {
+                            if (task.isSuccessful()) {
+                                mFirebaseDatabaseRef.child(ROOMS_CHILD)
+                                        .child(ROOM_ID)
+                                        .child(MESSAGES_CHILD)
+                                        .child(messageKey)
+                                        .child(MESSAGE_IMAGE_FIELD)
+                                        .setValue(newImageRef.toString());
+                                Log.w(TAG, "Upload successful: " +
+                                        newImageRef.toString());
+                            } else {
+                                Log.e(TAG, "Image upload task was not successful.",
+                                        task.getException());
+                            }
+                        });
+    }
+
 
     private void initFirebaseDatabaseRoomNameRefListener() {
         DatabaseReference mRoomNameRef = mFirebaseDatabaseRef.child(ROOMS_CHILD)
                 .child(ROOM_ID)
                 .child(ROOM_NAME_CHILD);
 
-        // Listen only one time addValueEventListener -> addListenerForSingleValueEvent
         mRoomNameRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
@@ -249,6 +293,9 @@ public class ChatActivity extends AppCompatActivity {
                         messageToUpdate.setSenderName(updatedMessage.getSenderName());
                         messageToUpdate.setSenderAvatarURL(
                                 updatedMessage.getSenderAvatarURL());
+                        messageToUpdate.setMessageImageURL(
+                                updatedMessage.getMessageImageURL()
+                        );
                         messageAdapter.notifyDataSetChanged();
                     }
                 }
@@ -296,5 +343,22 @@ public class ChatActivity extends AppCompatActivity {
             mMessagesRef.removeEventListener(mMessagesChildEventListener);
         }
         super.onPause();
+    }
+
+    private void addImageToMessage() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQUEST_IMAGE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if ((requestCode == REQUEST_IMAGE)
+                && (resultCode == RESULT_OK) && (data != null)) {
+            mImageMessageUri = data.getData();
+            mButtonAddImage.setImageResource(R.drawable.ic_action_remove_img);
+        }
     }
 }
