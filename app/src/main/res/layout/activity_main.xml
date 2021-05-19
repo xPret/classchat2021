@@ -36,4 +36,51 @@
         android:src="@mipmap/ic_launcher_round"
         android:contentDescription="@string/start_text" />
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/l_add_container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/b_about">
+
+        <TextView
+            android:id="@+id/tv_add_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginEnd="24dp"
+            android:background="?attr/colorPrimaryVariant"
+            android:padding="8dp"
+            android:textColor="?attr/colorOnPrimary"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/tv_add_desc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorOnPrimary"
+            android:padding="8dp"
+            android:textColor="?attr/colorPrimaryVariant"
+            app:layout_constraintEnd_toEndOf="@+id/tv_add_title"
+            app:layout_constraintStart_toStartOf="@+id/tv_add_title"
+            app:layout_constraintTop_toBottomOf="@+id/tv_add_title" />
+
+        <ImageView
+            android:id="@+id/iv_add_img"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginBottom="24dp"
+            android:scaleType="centerInside"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="@+id/tv_add_title"
+            app:layout_constraintStart_toStartOf="@+id/tv_add_title"
+            app:layout_constraintTop_toBottomOf="@+id/tv_add_desc" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
