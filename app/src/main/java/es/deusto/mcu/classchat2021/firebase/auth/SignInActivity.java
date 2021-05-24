@@ -1,4 +1,4 @@
-package es.deusto.mcu.classchat2021;
+package es.deusto.mcu.classchat2021.firebase.auth;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -9,7 +9,6 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.google.android.gms.auth.GoogleAuthUtil;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
@@ -23,6 +22,9 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.GoogleAuthProvider;
+
+import es.deusto.mcu.classchat2021.ChatActivity;
+import es.deusto.mcu.classchat2021.R;
 
 public class SignInActivity extends AppCompatActivity {
 
@@ -112,16 +114,13 @@ public class SignInActivity extends AppCompatActivity {
         FirebaseAuth.getInstance()
                 .signInWithCredential(credential)
                 .addOnCompleteListener(this,
-                        new OnCompleteListener<AuthResult>() {
-                            @Override
-                            public void onComplete(@NonNull Task<AuthResult> task) {
-                                if (!task.isSuccessful()) {
-                                    Toast.makeText(SignInActivity.this, "Auth. failed.",
-                                            Toast.LENGTH_SHORT).show();
-                                } else {
-                                    ChatActivity.startActivity(SignInActivity.this);
-                                    finish();
-                                }
+                        task -> {
+                            if (!task.isSuccessful()) {
+                                Toast.makeText(SignInActivity.this, "Auth. failed.",
+                                        Toast.LENGTH_SHORT).show();
+                            } else {
+                                ChatActivity.startActivity(SignInActivity.this);
+                                finish();
                             }
                         });
     }

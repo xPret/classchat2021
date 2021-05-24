@@ -4,7 +4,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -14,22 +13,23 @@ import android.widget.Toast;
 import com.bumptech.glide.Glide;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
+import es.deusto.mcu.classchat2021.firebase.fcm.ClassChatFCMUtils;
+import es.deusto.mcu.classchat2021.model.Ad;
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getName();
-    private static final String MSG_DATA_KEY_ADD_TITLE = "addTitle";
-    private static final String MSG_DATA_KEY_ADD_DESC = "addDesc";
-    private static final String MSG_DATA_KEY_ADD_IMAGE_URL = "addImgUrl";
     private FirebaseAnalytics mFirebaseAnalytics;
     private Button mButtonStart;
     private Button mButtonAbout;
     private ImageView mImageViewMainIcon;
-    private int aboutClicksCounter =0;
 
     private TextView tvAddTitle;
     private TextView tvAddDescription;
     private ImageView ivAddImage;
     private ConstraintLayout addLayout;
+
+    private int aboutClicksCounter = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,26 +54,20 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkFCMMessage(Bundle fcmMessageData) {
         if (null != fcmMessageData) {
-            String addTitle = fcmMessageData.getString(MSG_DATA_KEY_ADD_TITLE);
-            String addDesc = fcmMessageData.getString(MSG_DATA_KEY_ADD_DESC);
-            String addImageUrl = fcmMessageData.getString(MSG_DATA_KEY_ADD_IMAGE_URL);
-            Log.d(TAG, "checkFCMMessage: Title=" + addTitle);
-            Log.d(TAG, "checkFCMMessage: Desc=" + addDesc);
-            Log.d(TAG, "checkFCMMessage: ImageUrl=" + addImageUrl);
-            if (addTitle != null) {
-                showAdd(addTitle, addDesc, addImageUrl);
-            }
+            showAd(ClassChatFCMUtils.getAdFromMessageData(fcmMessageData));
         }
     }
 
-    private void showAdd(String addTitle, String addDescription, String addImageUrl) {
-        tvAddDescription.setText(addDescription);
-        tvAddTitle.setText(addTitle);
-        Glide.with(ivAddImage.getContext())
-                .load(addImageUrl)
-                .into(ivAddImage);
-        addLayout.setOnClickListener(view -> addLayout.setVisibility(View.GONE));
-        addLayout.setVisibility(View.VISIBLE);
+    private void showAd(Ad ad) {
+        if (ad != null) {
+            tvAddDescription.setText(ad.getDescription());
+            tvAddTitle.setText(ad.getTitle());
+            Glide.with(ivAddImage.getContext())
+                    .load(ad.getImageUrl())
+                    .into(ivAddImage);
+            addLayout.setOnClickListener(view -> addLayout.setVisibility(View.GONE));
+            addLayout.setVisibility(View.VISIBLE);
+        }
     }
 
     private void start(String source) {
@@ -85,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void about() {
-        ClassChatFCMService.printToken();
+        ClassChatFCMUtils.printToken();
         mFirebaseAnalytics.logEvent("click_about", null);
         aboutClicksCounter ++;
         if (aboutClicksCounter >= 3) {

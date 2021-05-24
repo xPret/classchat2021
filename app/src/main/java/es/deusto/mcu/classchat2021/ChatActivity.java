@@ -5,22 +5,9 @@ import android.net.Uri;
 import android.os.Bundle;
 
 import com.bumptech.glide.Glide;
-import com.google.android.gms.auth.api.Auth;
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.ChildEventListener;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
-import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -41,24 +28,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import es.deusto.mcu.classchat2021.firebase.auth.PrivateActivity;
+import es.deusto.mcu.classchat2021.firebase.data.CloudStorage;
+import es.deusto.mcu.classchat2021.firebase.data.RealtimeDatabase;
+import es.deusto.mcu.classchat2021.model.ChatMessage;
 
-public class ChatActivity extends AppCompatActivity {
 
-    private static final String DB_URL = "https://classchat-mcu2021-ivan-default-rtdb.europe-west1.firebasedatabase.app";
-    private static final String ROOMS_CHILD = "rooms";
-    private static final String ROOM_ID = "mcudeustoroomid";
-    private static final String ROOM_NAME_CHILD = "roomName";
-    private static final String MESSAGES_CHILD = "messages";
+public class ChatActivity extends PrivateActivity {
+
     private static final String TAG = ChatActivity.class.getName();
     private static final int REQUEST_IMAGE = 0;
-    private static final String FOLDER_CHAT_IMAGES = "/chat_images";
-    private static final String MESSAGE_IMAGE_FIELD = "messageImageURL";
-    private FirebaseAuth mFirebaseAuth;
-    private FirebaseUser mFirebaseUser;
-    private GoogleApiClient mGoogleApiClient;
 
-    private DatabaseReference mFirebaseDatabaseRef;
-    private StorageReference mFirebaseStorageRef;
+    private RealtimeDatabase mRealtimeDB;
+    private RealtimeDatabase.RoomListener mRoomListener;
+    private CloudStorage mCloudStorage;
+
 
     private TextView mTextViewUsername;
     private TextView mTextViewUserEmail;
@@ -68,9 +52,6 @@ public class ChatActivity extends AppCompatActivity {
     private EditText mEditTextMessage;
     private TextView mTextViewRoomTitle;
 
-    private DatabaseReference mMessagesRef;
-    private ChildEventListener mMessagesChildEventListener;
-
     private Map<String, ChatMessage> mChatMessagesMap;
     private List<ChatMessage> mChatMessagesList;
     private MessageAdapter messageAdapter;
@@ -79,6 +60,10 @@ public class ChatActivity extends AppCompatActivity {
     private ImageButton mButtonAddImage;
     private Uri mImageMessageUri = null;
 
+
+    public static void startActivity(AppCompatActivity caller) {
+        caller.startActivity(new Intent(caller, ChatActivity.class));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,227 +108,145 @@ public class ChatActivity extends AppCompatActivity {
             }
         });
 
-        initFirebaseAuth();
-        initGoogleApiClient();
-        if (mFirebaseUser != null) {
-            mTextViewUsername.setText(mFirebaseUser.getDisplayName());
-            mTextViewUserEmail.setText(mFirebaseUser.getEmail());
-            if (mFirebaseUser.getPhotoUrl() != null){
+        mTextViewUsername.setText(getUserDisplayName());
+        mTextViewUserEmail.setText(getUserEmail());
+            if (getUserPhotoUrl() != null){
                 Glide.with(mImageViewUserPhoto.getContext())
-                        .load(mFirebaseUser.getPhotoUrl().toString())
+                        .load(getUserPhotoUrl().toString())
                         .into(mImageViewUserPhoto);
             }
-        }
-        initFirebaseDatabaseReference();
-        initFirebaseDatabaseRoomNameRefListener();
-        initFirebaseDatabaseMessageRefListener();
-        initFirebaseCloudStorage();
-    }
 
-    private void initFirebaseCloudStorage() {
-        mFirebaseStorageRef = FirebaseStorage.getInstance().getReference();
-    }
-
-    private void initFirebaseAuth() {
-        mFirebaseAuth = FirebaseAuth.getInstance();
-        mFirebaseUser = mFirebaseAuth.getCurrentUser();
-        if (mFirebaseUser == null) {
-            SignInActivity.startActivity(this);
-            finish();
-        }
-    }
-
-    private void initGoogleApiClient() {
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .enableAutoManage(this, null)
-                .addApi(Auth.GOOGLE_SIGN_IN_API)
-                .build();
-    }
-
-    private void signOut() {
-        mFirebaseAuth.signOut();
-        Auth.GoogleSignInApi.signOut(mGoogleApiClient);
-        startActivity(new Intent(this, SignInActivity.class));
-        finish();
-    }
-
-    public static void startActivity(AppCompatActivity caller) {
-        caller.startActivity(new Intent(caller, ChatActivity.class));
-    }
-
-    private void initFirebaseDatabaseReference() {
-        mFirebaseDatabaseRef = FirebaseDatabase.getInstance(DB_URL).getReference();
-    }
-
-    private void sendMessage() {
-        String message = mEditTextMessage.getText().toString();
-        if (!message.equals("")) {
-            Snackbar.make(fab, "Sending...", Snackbar.LENGTH_LONG)
-                    .setAction("Send", null).show();
-            fab.hide();
-            mEditTextMessage.setVisibility(View.INVISIBLE);
-
-            ChatMessage newMessage = new ChatMessage(
-                    message,
-                    mFirebaseUser.getDisplayName(),
-                    mFirebaseUser.getPhotoUrl().toString());
-
-            mFirebaseDatabaseRef.child(ROOMS_CHILD).child(ROOM_ID)
-                    .child(MESSAGES_CHILD)
-                    .push().setValue(newMessage, new DatabaseReference.CompletionListener() {
-                        @Override
-                        public void onComplete(@Nullable DatabaseError databaseError,
-                                               @NonNull DatabaseReference databaseReference) {
-                            fab.show();
-                            mEditTextMessage.setVisibility(View.VISIBLE);
-                            if (databaseError == null) {
-                                Toast.makeText(getApplicationContext(),
-                                        "Message sent",Toast.LENGTH_LONG).show();
-                                mEditTextMessage.setText("");
-                                if (mImageMessageUri != null) {
-                                    String key = databaseReference.getKey();
-                                    StorageReference newImageRef =
-                                            mFirebaseStorageRef.child(FOLDER_CHAT_IMAGES)
-                                                    .child(mFirebaseUser.getUid())
-                                                    .child(key);
-                                    putImageInStorage(newImageRef, mImageMessageUri, key);
-                                    mButtonAddImage.setImageResource(R.drawable.ic_action_add_img);
-                                    mImageMessageUri = null;
-                                }
-                            } else {
-                                Toast.makeText(getApplicationContext(),
-                                        "Error sending message",
-                                        Toast.LENGTH_LONG).show();
-                            }
-                        }
-                    });
-        }
-    }
-
-    private void putImageInStorage(final StorageReference newImageRef,
-                                  final Uri imageUri,
-                                  final String messageKey) {
-        Log.d(TAG, "Image uploading to " + newImageRef.toString());
-        newImageRef.putFile(imageUri)
-                .addOnProgressListener(snapshot -> {
-                    double prog = (100.0 * snapshot.getBytesTransferred())
-                            / snapshot.getTotalByteCount();
-                    Log.i(TAG, "Upload is " + prog + "% done");
-                })
-                .addOnCompleteListener(ChatActivity.this,
-                        task -> {
-                            if (task.isSuccessful()) {
-                                mFirebaseDatabaseRef.child(ROOMS_CHILD)
-                                        .child(ROOM_ID)
-                                        .child(MESSAGES_CHILD)
-                                        .child(messageKey)
-                                        .child(MESSAGE_IMAGE_FIELD)
-                                        .setValue(newImageRef.toString());
-                                Log.w(TAG, "Upload successful: " +
-                                        newImageRef.toString());
-                            } else {
-                                Log.e(TAG, "Image upload task was not successful.",
-                                        task.getException());
-                            }
-                        });
-    }
-
-
-    private void initFirebaseDatabaseRoomNameRefListener() {
-        DatabaseReference mRoomNameRef = mFirebaseDatabaseRef.child(ROOMS_CHILD)
-                .child(ROOM_ID)
-                .child(ROOM_NAME_CHILD);
-
-        mRoomNameRef.addListenerForSingleValueEvent(new ValueEventListener() {
+        mRealtimeDB = new RealtimeDatabase();
+        mRealtimeDB.getRoomName(new RealtimeDatabase.RoomNameListener() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                mTextViewRoomTitle.setText(dataSnapshot.getValue().toString());
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
+            public void onRoomNameReceived(String roomName) {
+                mTextViewRoomTitle.setText(roomName);
             }
         });
-    }
 
-    private void initFirebaseDatabaseMessageRefListener() {
-        mMessagesRef = mFirebaseDatabaseRef.child(ROOMS_CHILD)
-                .child(ROOM_ID)
-                .child(MESSAGES_CHILD);
-        mMessagesChildEventListener = new ChildEventListener() {
+        mRoomListener = new RealtimeDatabase.RoomListener() {
             @Override
-            public void onChildAdded(@NonNull DataSnapshot dataSnapshot,
-                                     @Nullable String s) {
-                Log.d(TAG, "onChildAdded:" + dataSnapshot.getKey());
-                ChatMessage chatMessage = dataSnapshot.getValue(ChatMessage.class);
-                mChatMessagesMap.put(dataSnapshot.getKey(), chatMessage);
-                mChatMessagesList.add(chatMessage);
+            public void onMessageCreated(ChatMessage message) {
+                mChatMessagesMap.put(message.getId(), message);
+                mChatMessagesList.add(message);
                 messageAdapter.notifyDataSetChanged();
                 mMessagesRecycler.smoothScrollToPosition(messageAdapter.getItemCount()-1);
             }
 
             @Override
-            public void onChildChanged(@NonNull DataSnapshot dataSnapshot,
-                                       @Nullable String s) {
-                Log.d(TAG, "onChildChanged:" + dataSnapshot.getKey());
-                if (mChatMessagesMap.containsKey(dataSnapshot.getKey())) {
-                    ChatMessage updatedMessage =
-                            dataSnapshot.getValue(ChatMessage.class);
-                    ChatMessage messageToUpdate =
-                            mChatMessagesMap.get(dataSnapshot.getKey());
-                    if (updatedMessage != null && messageToUpdate != null) {
-                        messageToUpdate.setMessageText(updatedMessage.getMessageText());
-                        messageToUpdate.setSenderName(updatedMessage.getSenderName());
-                        messageToUpdate.setSenderAvatarURL(
-                                updatedMessage.getSenderAvatarURL());
-                        messageToUpdate.setMessageImageURL(
-                                updatedMessage.getMessageImageURL()
-                        );
+            public void onMessageUpdated(ChatMessage message) {
+                if (mChatMessagesMap.containsKey(message.getId())) {
+                    ChatMessage messageToUpdate = mChatMessagesMap.get(message.getId());
+                    if (messageToUpdate != null) {
+                        messageToUpdate.setMessageText(message.getMessageText());
+                        messageToUpdate.setSenderName(message.getSenderName());
+                        messageToUpdate.setSenderAvatarURL(message.getSenderAvatarURL());
+                        messageToUpdate.setMessageImageURL(message.getMessageImageURL());
                         messageAdapter.notifyDataSetChanged();
                     }
                 }
             }
 
             @Override
-            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) {
-                Log.d(TAG, "onChildRemoved:" + dataSnapshot.getKey());
-                String key = dataSnapshot.getKey();
-                if (mChatMessagesMap.containsKey(key)) {
-                    ChatMessage messageToRemove = mChatMessagesMap.get(key);
-                    mChatMessagesMap.remove(key);
+            public void onMessageRemoved(String messageId) {
+                if (mChatMessagesMap.containsKey(messageId)) {
+                    ChatMessage messageToRemove = mChatMessagesMap.get(messageId);
+                    mChatMessagesMap.remove(messageId);
                     mChatMessagesList.remove(messageToRemove);
                     messageAdapter.notifyDataSetChanged();
                 }
-
-            }
-
-            @Override
-            public void onChildMoved(@NonNull DataSnapshot dataSnapshot,
-                                     @Nullable String s) {
-                Log.d(TAG, "onChildMoved:" + dataSnapshot.getKey());
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
-                Log.d(TAG, "onCancelled:" + databaseError.getMessage());
             }
         };
+
+        mCloudStorage = new CloudStorage();
+    }
+
+
+    private void sendMessage() {
+        String message = mEditTextMessage.getText().toString();
+        if (!message.equals("")) {
+
+            ChatMessage newMessage = new ChatMessage(
+                    message,
+                    getUserDisplayName(),
+                    getUserPhotoUrl().toString());
+
+            mRealtimeDB.addNewMessage(newMessage, new RealtimeDatabase.MessageTransactionListener() {
+                @Override
+                public void onStart() {
+                    Snackbar.make(fab, "Sending...", Snackbar.LENGTH_LONG)
+                            .setAction("Send", null).show();
+                    fab.hide();
+                    mEditTextMessage.setVisibility(View.INVISIBLE);
+                }
+
+                @Override
+                public void onCompleted() {
+                    fab.show();
+                    mEditTextMessage.setVisibility(View.VISIBLE);
+                }
+
+                @Override
+                public void onSuccess(String newMessageId) {
+                    Toast.makeText(getApplicationContext(),
+                            "Message sent",Toast.LENGTH_LONG).show();
+                    mEditTextMessage.setText("");
+                    if (mImageMessageUri != null) {
+                        mCloudStorage.uploadImage(getUserUid(), newMessageId, mImageMessageUri,
+                                new CloudStorage.UploadImageListener() {
+                                    @Override
+                                    public void onStart(String imageRef) {
+                                        Log.d(TAG, "Image uploading to " + imageRef);
+                                    }
+
+                                    @Override
+                                    public void onProgress(long transferredBytes, long totalBytes) {
+                                        double p = (100.0 * transferredBytes) / totalBytes;
+                                        Log.i(TAG, "Upload is " + p + "% done");
+                                    }
+
+                                    @Override
+                                    public void onCompleted() {
+
+                                    }
+
+                                    @Override
+                                    public void onSuccess(String imageRef) {
+                                        mRealtimeDB.addImageToMessage(newMessageId, imageRef, null);
+                                        Log.w(TAG, "Upload successful: " + imageRef);
+                                    }
+
+                                    @Override
+                                    public void onError(String error) {
+                                        Log.e(TAG, error);
+                                    }
+                                });
+                        mButtonAddImage.setImageResource(R.drawable.ic_action_add_img);
+                        mImageMessageUri = null;
+                    }
+                }
+
+                @Override
+                public void onError(String error) {
+                    Toast.makeText(getApplicationContext(),
+                            error,
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (mMessagesRef != null) {
-            mChatMessagesList.clear();
-            mChatMessagesMap.clear();
-            mMessagesRef.addChildEventListener(mMessagesChildEventListener);
-        }
+        mChatMessagesList.clear();
+        mChatMessagesMap.clear();
+        mRealtimeDB.registerRoomListener(mRoomListener);
     }
 
     @Override
     protected void onPause() {
-        if (mMessagesRef != null) {
-            mMessagesRef.removeEventListener(mMessagesChildEventListener);
-        }
+        mRealtimeDB.unregisterRoomListener();
         super.onPause();
     }
 

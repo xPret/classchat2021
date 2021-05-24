@@ -1,4 +1,4 @@
-package es.deusto.mcu.classchat2021;
+package es.deusto.mcu.classchat2021.model;
 
 public class ChatMessage {
     private String id;

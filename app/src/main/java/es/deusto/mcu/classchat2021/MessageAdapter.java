@@ -10,12 +10,12 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
 
 import java.util.List;
 
 import de.hdodenhof.circleimageview.CircleImageView;
+import es.deusto.mcu.classchat2021.firebase.data.CloudStorage;
+import es.deusto.mcu.classchat2021.model.ChatMessage;
 
 public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageViewHolder> {
 
@@ -71,23 +71,23 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         String messageURL = chatMessage.getMessageImageURL();
         if (messageURL != null) {
             if (messageURL.startsWith("gs://")) {
-                StorageReference storageRef = FirebaseStorage.getInstance()
-                        .getReferenceFromUrl(messageURL);
-                storageRef.getDownloadUrl().addOnCompleteListener(
-                        task -> {
-                            if (task.isSuccessful() && task.getResult() != null) {
-                                String downloadUrl = task.getResult().toString();
-                                Glide.with(holder.ivMessageImage.getContext())
-                                        .load(downloadUrl)
-                                        .into(holder.ivMessageImage);
-                                holder.ivMessageImage.setVisibility(View.VISIBLE);
-                            } else {
-                                holder.ivMessageImage.setVisibility(View.GONE);
-                            }
-                        });
+                CloudStorage cloudStorage = new CloudStorage();
+                cloudStorage.getDownloadUrl(messageURL, new CloudStorage.DownloadUrlListener() {
+                    @Override
+                    public void onSuccess(String downloadUrl) {
+                        Glide.with(holder.ivMessageImage.getContext())
+                                .load(downloadUrl)
+                                .into(holder.ivMessageImage);
+                        holder.ivMessageImage.setVisibility(View.VISIBLE);
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        holder.ivMessageImage.setVisibility(View.GONE);
+                    }
+                });
             }
         }
-
     }
 
     @Override
