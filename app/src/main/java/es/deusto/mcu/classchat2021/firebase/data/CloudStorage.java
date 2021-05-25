@@ -7,9 +7,6 @@ import com.google.firebase.storage.StorageReference;
 
 public class CloudStorage {
 
-
-    private static final String TAG = CloudStorage.class.getName();
-
     private static final String FOLDER_CHAT_IMAGES = "/chat_images";
 
     private StorageReference mFirebaseStorageRef;
@@ -18,14 +15,12 @@ public class CloudStorage {
         mFirebaseStorageRef = FirebaseStorage.getInstance().getReference();
     }
 
-
-
-    public abstract static class UploadImageListener {
-        public abstract void onStart(String imageRef);
-        public abstract void onProgress(long transferredBytes, long totalBytes);
-        public abstract void onCompleted();
-        public abstract void onSuccess(String imageRef);
-        public abstract void onError(String error);
+    public interface UploadImageListener {
+        void onStart(String imageRef);
+        void onProgress(long transferredBytes, long totalBytes);
+        void onCompleted();
+        void onSuccess(String imageRef);
+        void onError(String error);
     }
 
     public void uploadImage(final String userId, final String messageId,
@@ -57,9 +52,9 @@ public class CloudStorage {
     }
 
 
-    public abstract static class DownloadUrlListener {
-        public abstract void onSuccess(String downloadUrl);
-        public abstract void onError(String error);
+    public interface DownloadUrlListener {
+        void onSuccess(String downloadUrl);
+        void onError(String error);
     }
 
     public void getDownloadUrl(String messageURL, DownloadUrlListener listener) {

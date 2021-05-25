@@ -34,20 +34,15 @@ import es.deusto.mcu.classchat2021.firebase.data.RealtimeDatabase;
 import es.deusto.mcu.classchat2021.model.ChatMessage;
 
 
-public class ChatActivity extends PrivateActivity {
+public class ChatActivity extends PrivateActivity implements RealtimeDatabase.RoomListener,
+        RealtimeDatabase.RoomNameListener {
 
     private static final String TAG = ChatActivity.class.getName();
     private static final int REQUEST_IMAGE = 0;
 
     private RealtimeDatabase mRealtimeDB;
-    private RealtimeDatabase.RoomListener mRoomListener;
     private CloudStorage mCloudStorage;
 
-
-    private TextView mTextViewUsername;
-    private TextView mTextViewUserEmail;
-    private ImageView mImageViewUserPhoto;
-    private Button mButtonSignOut;
     private FloatingActionButton fab;
     private EditText mEditTextMessage;
     private TextView mTextViewRoomTitle;
@@ -75,11 +70,11 @@ public class ChatActivity extends PrivateActivity {
         fab = findViewById(R.id.fab);
         fab.setOnClickListener(view -> sendMessage());
 
-        mTextViewUsername = findViewById(R.id.tv_username);
-        mTextViewUserEmail = findViewById(R.id.tv_useremail);
-        mImageViewUserPhoto = findViewById(R.id.iv_userphoto);
+        TextView mTextViewUsername = findViewById(R.id.tv_username);
+        TextView mTextViewUserEmail = findViewById(R.id.tv_useremail);
+        ImageView mImageViewUserPhoto = findViewById(R.id.iv_userphoto);
 
-        mButtonSignOut = findViewById(R.id.b_signout);
+        Button mButtonSignOut = findViewById(R.id.b_signout);
         mButtonSignOut.setOnClickListener(v -> signOut());
 
         mEditTextMessage = findViewById(R.id.et_message);
@@ -117,50 +112,78 @@ public class ChatActivity extends PrivateActivity {
             }
 
         mRealtimeDB = new RealtimeDatabase();
-        mRealtimeDB.getRoomName(new RealtimeDatabase.RoomNameListener() {
-            @Override
-            public void onRoomNameReceived(String roomName) {
-                mTextViewRoomTitle.setText(roomName);
-            }
-        });
-
-        mRoomListener = new RealtimeDatabase.RoomListener() {
-            @Override
-            public void onMessageCreated(ChatMessage message) {
-                mChatMessagesMap.put(message.getId(), message);
-                mChatMessagesList.add(message);
-                messageAdapter.notifyDataSetChanged();
-                mMessagesRecycler.smoothScrollToPosition(messageAdapter.getItemCount()-1);
-            }
-
-            @Override
-            public void onMessageUpdated(ChatMessage message) {
-                if (mChatMessagesMap.containsKey(message.getId())) {
-                    ChatMessage messageToUpdate = mChatMessagesMap.get(message.getId());
-                    if (messageToUpdate != null) {
-                        messageToUpdate.setMessageText(message.getMessageText());
-                        messageToUpdate.setSenderName(message.getSenderName());
-                        messageToUpdate.setSenderAvatarURL(message.getSenderAvatarURL());
-                        messageToUpdate.setMessageImageURL(message.getMessageImageURL());
-                        messageAdapter.notifyDataSetChanged();
-                    }
-                }
-            }
-
-            @Override
-            public void onMessageRemoved(String messageId) {
-                if (mChatMessagesMap.containsKey(messageId)) {
-                    ChatMessage messageToRemove = mChatMessagesMap.get(messageId);
-                    mChatMessagesMap.remove(messageId);
-                    mChatMessagesList.remove(messageToRemove);
-                    messageAdapter.notifyDataSetChanged();
-                }
-            }
-        };
-
+        mRealtimeDB.getRoomName(this);
         mCloudStorage = new CloudStorage();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mChatMessagesList.clear();
+        mChatMessagesMap.clear();
+        mRealtimeDB.registerRoomListener(this);
+    }
+
+    @Override
+    protected void onPause() {
+        mRealtimeDB.unregisterRoomListener();
+        super.onPause();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if ((requestCode == REQUEST_IMAGE)
+                && (resultCode == RESULT_OK) && (data != null)) {
+            mImageMessageUri = data.getData();
+            mButtonAddImage.setImageResource(R.drawable.ic_action_remove_img);
+        }
+    }
+
+    @Override
+    public void onMessageCreated(ChatMessage message) {
+        mChatMessagesMap.put(message.getId(), message);
+        mChatMessagesList.add(message);
+        messageAdapter.notifyDataSetChanged();
+        mMessagesRecycler.smoothScrollToPosition(messageAdapter.getItemCount()-1);
+    }
+
+    @Override
+    public void onMessageUpdated(ChatMessage message) {
+        if (mChatMessagesMap.containsKey(message.getId())) {
+            ChatMessage messageToUpdate = mChatMessagesMap.get(message.getId());
+            if (messageToUpdate != null) {
+                messageToUpdate.setMessageText(message.getMessageText());
+                messageToUpdate.setSenderName(message.getSenderName());
+                messageToUpdate.setSenderAvatarURL(message.getSenderAvatarURL());
+                messageToUpdate.setMessageImageURL(message.getMessageImageURL());
+                messageAdapter.notifyDataSetChanged();
+            }
+        }
+    }
+
+    @Override
+    public void onMessageRemoved(String messageId) {
+        if (mChatMessagesMap.containsKey(messageId)) {
+            ChatMessage messageToRemove = mChatMessagesMap.get(messageId);
+            mChatMessagesMap.remove(messageId);
+            mChatMessagesList.remove(messageToRemove);
+            messageAdapter.notifyDataSetChanged();
+        }
+    }
+
+    @Override
+    public void onRoomNameReceived(String roomName) {
+        mTextViewRoomTitle.setText(roomName);
+    }
+
+
+    private void addImageToMessage() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQUEST_IMAGE);
+    }
 
     private void sendMessage() {
         String message = mEditTextMessage.getText().toString();
@@ -233,37 +256,6 @@ public class ChatActivity extends PrivateActivity {
                             Toast.LENGTH_LONG).show();
                 }
             });
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        mChatMessagesList.clear();
-        mChatMessagesMap.clear();
-        mRealtimeDB.registerRoomListener(mRoomListener);
-    }
-
-    @Override
-    protected void onPause() {
-        mRealtimeDB.unregisterRoomListener();
-        super.onPause();
-    }
-
-    private void addImageToMessage() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("image/*");
-        startActivityForResult(intent, REQUEST_IMAGE);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if ((requestCode == REQUEST_IMAGE)
-                && (resultCode == RESULT_OK) && (data != null)) {
-            mImageMessageUri = data.getData();
-            mButtonAddImage.setImageResource(R.drawable.ic_action_remove_img);
         }
     }
 }

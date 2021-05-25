@@ -35,8 +35,8 @@ public class RealtimeDatabase {
                 .child(MESSAGES_CHILD);
     }
 
-    public abstract static class RoomNameListener {
-        public abstract void onRoomNameReceived(String roomName);
+    public interface RoomNameListener {
+        void onRoomNameReceived(String roomName);
     }
 
     public void getRoomName(final RoomNameListener nameListener) {
@@ -55,10 +55,10 @@ public class RealtimeDatabase {
     }
 
 
-    public abstract static class RoomListener {
-        public abstract void onMessageCreated(ChatMessage message);
-        public abstract void onMessageUpdated(ChatMessage message);
-        public abstract void onMessageRemoved(String messageId);
+    public interface RoomListener {
+        void onMessageCreated(ChatMessage message);
+        void onMessageUpdated(ChatMessage message);
+        void onMessageRemoved(String messageId);
     }
 
     public void registerRoomListener(final RoomListener roomListener) {
@@ -111,11 +111,11 @@ public class RealtimeDatabase {
     }
 
 
-    public abstract static class MessageTransactionListener {
-        public abstract void onStart();
-        public abstract void onCompleted();
-        public abstract void onSuccess(String newMessageId);
-        public abstract void onError(String error);
+    public interface MessageTransactionListener {
+        void onStart();
+        void onCompleted();
+        void onSuccess(String newMessageId);
+        void onError(String error);
     }
 
     public void addNewMessage(ChatMessage newMessage, final MessageTransactionListener listener) {
